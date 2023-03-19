@@ -19,13 +19,12 @@ def make_blocks(img, num_slicing_levels=3):
     The list of individual blocks from each level of slicing
   '''
 
-  if(len(img.shape)!=3):
+  if(len(img.shape)!=2):
     raise NotImplementedError
   if(img.shape[0]!=img.shape[1]):
     raise Exception
 
   out = []
-
   N = img.shape[0]
   for level in range(1, num_slicing_levels+1):
     block_size = N//level
@@ -56,3 +55,37 @@ def get_dft(img):
   shifted_dft = sfft.fftshift(dft)
 
   return np.abs(shifted_dft)
+
+def merge_dfts(dft_list, num_slicing_levels):
+  '''
+  Given a list of DFTs for individual blocks at different levels, 
+  place into a single multidimensional tensor. Each channel comprises DFT blocks of
+  a particular slicing level
+
+  Parameters
+  ------------------
+  dft_list: List[np.ndarray]
+    The list of DFTs of individual image blocks
+  num_slicing_levels: int
+    The number of levels of slicing carried out
+  
+  Returns
+  ---------------------
+  out: np.ndarray
+    Single array containing the DFTs of all blocks
+  '''
+
+  #1st block contains the DFT of full image
+  print(dft_list[0].shape)
+  N, _ = dft_list[0].shape
+  out = np.zeros((N,N,num_slicing_levels))
+  curr_idx = 0
+
+  for level in range(1, num_slicing_levels+1):
+    curr_block_size = N//level
+    for i in range(level):
+      for j in range(level):
+        out[i*curr_block_size:(i+1)*curr_block_size, j*curr_block_size:(j+1)*curr_block_size, level-1] = dft_list[curr_idx]
+        curr_idx += 1
+
+  return out
