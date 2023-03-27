@@ -8,10 +8,10 @@ def getDim(level):
     dimsize = IMAGE_SIZE / level
     if(dimsize % 2 == 1):
         dimsize += 1
-    return dimsize / 2
+    return int(dimsize // 2)
 
 def generateFilter(weights, level):
-    filter_size = IMAGE_SIZE / level
+    filter_size = int(IMAGE_SIZE / level)
     steps = weights.size(dim=0)
     output = torch.from_numpy(np.zeros((filter_size, filter_size)))
     current_dim = 1
@@ -31,9 +31,8 @@ def generateFilter(weights, level):
         current_dim += 2
     return output
 
-
-class DftModel(nn.Module):
-    def __init__(self):
+class DFTModel(nn.Module):
+    def __init__(self, num_classes):
         super().__init__()
         self.layer1 = torch.rand(getDim(1))
         self.layer2_00 = torch.rand(getDim(2))
@@ -50,7 +49,27 @@ class DftModel(nn.Module):
         self.layer3_21 = torch.rand(getDim(3))
         self.layer3_22 = torch.rand(getDim(3))
 
+        self.num_coeff = sum([(i**2)*getDim(i) for i in range(1,4)])
+        self.num_classes = num_classes
+
+        self.fc1 = nn.Linear(in_features=self.num_coeff, out_features=1024)
+        self.fc2 = nn.Linear(in_features=1024, out_features=128)
+        self.fc3 = nn.Linear(in_features=128, out_features=self.num_classes)
+
     def forward(self, x):
+        '''
+        Forward pass
+
+        Parameters
+        --------------------------
+        x: torch.Tensor
+            Expected to have shape (batch_size, num_slicing_levels, N, N) where N is the height/width of the original image
+
+        Returns
+        -------------------------
+        out: torch.Tensor
+            Scores for each predicted class
+        '''
         l1Filter = generateFilter(self.layer1,1)
 
         block_size = IMAGE_SIZE // 2
@@ -95,5 +114,32 @@ class DftModel(nn.Module):
         filterBank[:,:,1] = l2Filter
         filterBank[:,:,2] = l3Filter
         
+        # Multiplying the filter bank with each element in the batch
         out = torch.mul(x, filterBank)
-        
+
+        #Radially aggregating the outputs to form the inputs for the first FC layer
+        batch_size = x.shape[0]
+        coefficients = torch.zeros((batch_size, self.num_coeff))
+
+        for batch_idx in range(batch_size):
+            coeff_idx = 0
+            for layer in range(1, 4):
+                maxR = getDim(layer)
+                block_size = int(IMAGE_SIZE // block_size)
+                for block_i in range(layer):
+                    for block_j in range(layer):
+                        for r in range(maxR):
+                            x_min = block_i*block_size+r
+                            x_max = (block_i+1)*block_size-r
+                            y_min = block_j*block_size+r
+                            y_max = (block_j+1)*block_size-r
+                            coefficients[batch_idx][coeff_idx] = torch.sum(out[batch_idx,layer-1,x_min:x_max,y_min:y_max])
+                            coeff_idx += 1
+                        
+        out = self.fc1(coefficients)
+        out = torch.nn.ReLU()(out)
+        out = self.fc2(out)
+        out = torch.nn.ReLU()(out)
+        out = self.fc3(out)
+
+        return out

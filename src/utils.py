@@ -76,7 +76,6 @@ def merge_dfts(dft_list, num_slicing_levels):
   '''
 
   #1st block contains the DFT of full image
-  print(dft_list[0].shape)
   N, _ = dft_list[0].shape
   out = np.zeros((N,N,num_slicing_levels))
   curr_idx = 0
