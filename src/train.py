@@ -36,15 +36,30 @@ def train(model, train_loader, epochs, lr, wt_decay, loss_fn=torch.nn.CrossEntro
 
   print('Final Train Accuracy', (100*correct)/total)
 
-def test():
-  pass
+def test(model, test_loader):
+  model.eval()
+  correct = 0
+  total = 0
+  with torch.no_grad():
+    for (x,y) in test_loader:
+      out = model(x)
+      pred = torch.argmax(out, dim=1)
+      correct += torch.sum(pred==y)
+      total += x.shape[0]
+
+  print('Final Test Accuracy', (100*correct)/total)
 
 def main():
-  ds = datasets.DFTFolderDataset('../datasets/PACS/photo')
-  dl = torch.utils.data.DataLoader(ds, batch_size=32, shuffle=True)
-  model = models.DFTModel(num_classes=len(ds.classes))
+  train_ds = datasets.DFTFolderDataset('../datasets/PACS/photo')
+  train_dl = torch.utils.data.DataLoader(train_ds, batch_size=32, shuffle=True)
 
-  train(model=model, train_loader=dl, epochs=100, lr=0.0001, wt_decay=0.00001)
+  test_ds = datasets.DFTFolderDataset('../datasets/PACS/cartoon')
+  test_dl = torch.utils.data.DataLoader(test_ds, batch_size=32, shuffle=True)
+
+  model = models.DFTModel(num_classes=len(train_ds.classes))
+
+  train(model=model, train_loader=train_dl, epochs=100, lr=0.0001, wt_decay=0.00001)
+  test(model=model, test_loader=test_dl)
 
 if __name__ == '__main__':
   main()
