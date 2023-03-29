@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import numpy as np
+from tqdm import tqdm
 
 IMAGE_SIZE = 222
 
@@ -34,20 +35,20 @@ def generateFilter(weights, level):
 class DFTModel(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
-        self.layer1 = torch.rand(getDim(1))
-        self.layer2_00 = torch.rand(getDim(2))
-        self.layer2_01 = torch.rand(getDim(2))
-        self.layer2_10 = torch.rand(getDim(2))
-        self.layer2_11 = torch.rand(getDim(2))
-        self.layer3_00 = torch.rand(getDim(3))
-        self.layer3_01 = torch.rand(getDim(3))
-        self.layer3_02 = torch.rand(getDim(3))
-        self.layer3_10 = torch.rand(getDim(3))
-        self.layer3_11 = torch.rand(getDim(3))
-        self.layer3_12 = torch.rand(getDim(3))
-        self.layer3_20 = torch.rand(getDim(3))
-        self.layer3_21 = torch.rand(getDim(3))
-        self.layer3_22 = torch.rand(getDim(3))
+        self.layer1 = torch.nn.Parameter(torch.rand(getDim(1)))
+        self.layer2_00 = torch.nn.Parameter(torch.rand(getDim(2)))
+        self.layer2_01 = torch.nn.Parameter(torch.rand(getDim(2)))
+        self.layer2_10 = torch.nn.Parameter(torch.rand(getDim(2)))
+        self.layer2_11 = torch.nn.Parameter(torch.rand(getDim(2)))
+        self.layer3_00 = torch.nn.Parameter(torch.rand(getDim(3)))
+        self.layer3_01 = torch.nn.Parameter(torch.rand(getDim(3)))
+        self.layer3_02 = torch.nn.Parameter(torch.rand(getDim(3)))
+        self.layer3_10 = torch.nn.Parameter(torch.rand(getDim(3)))
+        self.layer3_11 = torch.nn.Parameter(torch.rand(getDim(3)))
+        self.layer3_12 = torch.nn.Parameter(torch.rand(getDim(3)))
+        self.layer3_20 = torch.nn.Parameter(torch.rand(getDim(3)))
+        self.layer3_21 = torch.nn.Parameter(torch.rand(getDim(3)))
+        self.layer3_22 = torch.nn.Parameter(torch.rand(getDim(3)))
 
         self.num_coeff = sum([(i**2)*getDim(i) for i in range(1,4)])
         self.num_classes = num_classes
@@ -121,20 +122,19 @@ class DFTModel(nn.Module):
         batch_size = x.shape[0]
         coefficients = torch.zeros((batch_size, self.num_coeff))
 
-        for batch_idx in range(batch_size):
-            coeff_idx = 0
-            for layer in range(1, 4):
-                maxR = getDim(layer)
-                block_size = int(IMAGE_SIZE // block_size)
-                for block_i in range(layer):
-                    for block_j in range(layer):
-                        for r in range(maxR):
-                            x_min = block_i*block_size+r
-                            x_max = (block_i+1)*block_size-r
-                            y_min = block_j*block_size+r
-                            y_max = (block_j+1)*block_size-r
-                            coefficients[batch_idx][coeff_idx] = torch.sum(out[batch_idx,layer-1,x_min:x_max,y_min:y_max])
-                            coeff_idx += 1
+        coeff_idx = 0
+        for layer in range(1, 4):
+            maxR = getDim(layer)
+            block_size = int(IMAGE_SIZE // layer)
+            for block_i in range(layer):
+                for block_j in range(layer):
+                    for r in range(maxR):
+                        x_min = block_i*block_size+r
+                        x_max = (block_i+1)*block_size-r
+                        y_min = block_j*block_size+r
+                        y_max = (block_j+1)*block_size-r
+                        coefficients[:,coeff_idx] = torch.sum(out[:, x_min:x_max, y_min:y_max, layer-1], dim=[1,2])
+                        coeff_idx += 1
                         
         out = self.fc1(coefficients)
         out = torch.nn.ReLU()(out)
