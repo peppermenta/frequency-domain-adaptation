@@ -19,6 +19,20 @@ def train(model, train_loader, epochs, lr, wt_decay, loss_fn=torch.nn.CrossEntro
       loss.backward()
       optimizer.step()
       total_loss += loss.item()
+      model.layer1 = torch.clamp(model.layer1, min=0.0)
+      model.layer2_00 = torch.clamp(model.layer2_00, min=0.0)
+      model.layer2_01 = torch.clamp(model.layer2_01, min=0.0)
+      model.layer2_10 = torch.clamp(model.layer2_10, min=0.0)
+      model.layer2_11 = torch.clamp(model.layer2_11, min=0.0)
+      model.layer3_00 = torch.clamp(model.layer3_00, min=0.0)
+      model.layer3_01 = torch.clamp(model.layer3_01, min=0.0)
+      model.layer3_02 = torch.clamp(model.layer3_02, min=0.0)
+      model.layer3_10 = torch.clamp(model.layer3_10, min=0.0)
+      model.layer3_11 = torch.clamp(model.layer3_11, min=0.0)
+      model.layer3_12 = torch.clamp(model.layer3_12, min=0.0)
+      model.layer3_20 = torch.clamp(model.layer3_20, min=0.0)
+      model.layer3_21 = torch.clamp(model.layer3_21, min=0.0)
+      model.layer3_22 = torch.clamp(model.layer3_22, min=0.0)
 
     training_hist.append(total_loss)
   
@@ -58,7 +72,7 @@ def main():
 
   model = models.DFTModel(num_classes=len(train_ds.classes))
 
-  train(model=model, train_loader=train_dl, epochs=100, lr=0.0001, wt_decay=0.00001)
+  train(model=model, train_loader=train_dl, epochs=3, lr=0.001, wt_decay=0.0001)
   test(model=model, test_loader=test_dl)
 
 if __name__ == '__main__':
