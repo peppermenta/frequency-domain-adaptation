@@ -14,7 +14,7 @@ def getDim(level):
 def generateFilter(weights, level):
     filter_size = int(IMAGE_SIZE / level)
     steps = weights.size(dim=0)
-    output = torch.from_numpy(np.zeros((filter_size, filter_size)))
+    output = torch.from_numpy(np.zeros((filter_size, filter_size))).to('cuda')
     current_dim = 1
     if(filter_size % 2 == 0):
         current_dim += 1
@@ -26,7 +26,7 @@ def generateFilter(weights, level):
             current_layer = current_layer - cut
         padding = ((filter_size - current_dim) // 2)
         current_layer = np.pad(current_layer, ((padding, padding), (padding,padding)), 'constant')
-        current_layer = torch.from_numpy(current_layer)
+        current_layer = torch.from_numpy(current_layer).to('cuda')
         current_layer = torch.mul(current_layer, weights[i])
         output = torch.add(output, current_layer)
         current_dim += 2
@@ -52,10 +52,13 @@ class DFTModel(nn.Module):
 
         self.num_coeff = sum([(i**2)*getDim(i) for i in range(1,4)])
         self.num_classes = num_classes
+        self.coeff_batchnorm = torch.nn.BatchNorm1d(num_features=self.num_coeff)
 
-        self.fc1 = nn.Linear(in_features=self.num_coeff, out_features=1024)
-        self.fc2 = nn.Linear(in_features=1024, out_features=128)
-        self.fc3 = nn.Linear(in_features=128, out_features=self.num_classes)
+        self.fc1 = nn.Linear(in_features=self.num_coeff, out_features=2048)
+        self.fc2 = nn.Linear(in_features=2048, out_features=1024)
+        self.fc3 = nn.Linear(in_features=1024, out_features=512)
+        self.fc4 = nn.Linear(in_features=512, out_features=128)
+        self.fc5 = nn.Linear(in_features=128, out_features=self.num_classes)
 
     def forward(self, x):
         '''
@@ -110,17 +113,18 @@ class DFTModel(nn.Module):
         l3_22 = generateFilter(self.layer3_22,3)
         l3Filter[block_size * 2:, block_size * 2:block_size * 3] = l3_22
 
-        filterBank = torch.zeros(IMAGE_SIZE, IMAGE_SIZE, 3)
+        filterBank = torch.zeros(IMAGE_SIZE, IMAGE_SIZE, 3).to('cuda')
         filterBank[:,:,0] = l1Filter
         filterBank[:,:,1] = l2Filter
         filterBank[:,:,2] = l3Filter
+        filterBank = filterBank.to('cuda')
         
         # Multiplying the filter bank with each element in the batch
         out = torch.mul(x, filterBank)
 
         #Radially aggregating the outputs to form the inputs for the first FC layer
         batch_size = x.shape[0]
-        coefficients = torch.zeros((batch_size, self.num_coeff))
+        coefficients = torch.zeros((batch_size, self.num_coeff)).to('cuda')
 
         coeff_idx = 0
         for layer in range(1, 4):
@@ -136,10 +140,15 @@ class DFTModel(nn.Module):
                         coefficients[:,coeff_idx] = torch.sum(out[:, x_min:x_max, y_min:y_max, layer-1], dim=[1,2])
                         coeff_idx += 1
                         
-        out = self.fc1(coefficients)
+        out = self.coeff_batchnorm(coefficients)
+        out = self.fc1(out)
         out = torch.nn.ReLU()(out)
         out = self.fc2(out)
         out = torch.nn.ReLU()(out)
         out = self.fc3(out)
+        out = torch.nn.ReLU()(out)
+        out = self.fc4(out)
+        out = torch.nn.ReLU()(out)
+        out = self.fc5(out)
 
         return out
