@@ -1,6 +1,6 @@
 import numpy as np
 import models
-import torchvision.datasets
+import torchvision
 import datasets
 import torch
 import matplotlib.pyplot as plt
@@ -37,22 +37,6 @@ def train(model, train_loader, val_loader, epochs, lr, wt_decay, lr_decay, loss_
       correct += torch.sum(pred==y)
       total += x.shape[0]
       total_loss += loss.item()
-
-      model.layer1.clamp(min=0.0)
-      model.layer2_00.clamp(min=0.0)
-      model.layer2_01.clamp(min=0.0)
-      model.layer2_10.clamp(min=0.0)
-      model.layer2_11.clamp(min=0.0)
-      model.layer3_00.clamp(min=0.0)
-      model.layer3_01.clamp(min=0.0)
-      model.layer3_02.clamp(min=0.0)
-      model.layer3_10.clamp(min=0.0)
-      model.layer3_11.clamp(min=0.0)
-      model.layer3_12.clamp(min=0.0)
-      model.layer3_20.clamp(min=0.0)
-      model.layer3_21.clamp(min=0.0)
-      model.layer3_22.clamp(min=0.0)
-
 
     training_hist.append(total_loss)
     print('Train Loss', total_loss/len(train_loader.dataset))
@@ -92,8 +76,8 @@ def train(model, train_loader, val_loader, epochs, lr, wt_decay, lr_decay, loss_
   print('Best Validation Accuracy', best_acc)
   print('Final Train Accuracy', final_train_acc.item())
   plt.plot(np.arange(epochs), training_hist)
-  plt.savefig(f'../plots/lr{lr}_decay{wt_decay}_epochs{epochs}_lrdecay{lr_decay}_acc{best_acc}.pdf')
-  torch.save(best_weights, f'../trained_models/lr{lr}_decay{wt_decay}_lrdecay{lr_decay}_epochs{epochs}_acc{best_acc}.pt')
+  plt.savefig(f'../normal_plots/lr{lr}_decay{wt_decay}_epochs{epochs}_lrdecay{lr_decay}_acc{best_acc}.pdf')
+  torch.save(best_weights, f'../normal_trained_models/lr{lr}_decay{wt_decay}_lrdecay{lr_decay}_epochs{epochs}_acc{best_acc}.pt')
   
   model.load_state_dict(best_weights)
 
@@ -118,19 +102,27 @@ def main():
   gen = torch.Generator().manual_seed(0)
   batch_size = 32
     
-  ds = datasets.DFTFolderDataset('../datasets/PACS/photo')
+  preprocessing = torchvision.transforms.Compose([
+    torchvision.transforms.CenterCrop(224),
+    torchvision.transforms.RandomHorizontalFlip(),
+    torchvision.transforms.ToTensor(),
+    torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
+  ])
+  
+  ds = torchvision.datasets.ImageFolder('../datasets/PACS/photo', transform=preprocessing)
   train_ds, val_ds = torch.utils.data.random_split(ds, [0.75, 0.25], generator=gen)
   train_dl = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True)
   val_dl = torch.utils.data.DataLoader(val_ds, batch_size=batch_size, shuffle=True)
 
 
-  test_ds = datasets.DFTFolderDataset('../datasets/PACS/cartoon')
+  test_ds = torchvision.datasets.ImageFolder('../datasets/PACS/cartoon', transform=preprocessing)
   test_dl = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
 
-  model = models.DFTModel(num_classes=len(ds.classes))
+  model = torchvision.models.resnet18(pretrained=True)
   model = model.to('cuda')
 
-  train(model=model, train_loader=train_dl, val_loader=val_dl, epochs=100, lr=1e-3, wt_decay=1e-3, lr_decay=1)
+  train(model=model, train_loader=train_dl, val_loader=val_dl, epochs=100, lr=1e-3, wt_decay=1e-4, lr_decay=1)
   print('Testing on best validation accuracy model')
   test(model=model, test_loader=test_dl)
 
