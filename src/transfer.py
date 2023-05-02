@@ -91,26 +91,6 @@ def train(model, train_loader, val_loader, epochs, lr, wt_decay, lr_decay, loss_
     
   print('Best Validation Accuracy', best_acc)
   print('Final Train Accuracy', final_train_acc.item())
-  plt.plot(np.arange(epochs), training_hist)
-  plt.savefig(f'../plots/lr{lr}_decay{wt_decay}_epochs{epochs}_lrdecay{lr_decay}_acc{best_acc}.pdf')
-  torch.save(best_weights, f'../trained_models/lr{lr}_decay{wt_decay}_lrdecay{lr_decay}_epochs{epochs}_acc{best_acc}.pt')
-  
-  model.load_state_dict(best_weights)
-
-def test(model, test_loader):
-  model.eval()
-  correct = 0
-  total = 0
-  with torch.no_grad():
-    for (x,y) in tqdm(test_loader):
-      x = x.to('cuda')
-      y = y.to('cuda')
-      out = model(x)
-      pred = torch.argmax(out, dim=1)
-      correct += torch.sum(pred==y)
-      total += x.shape[0]
-
-  print('Final Test Accuracy', (100*correct)/total)
 
 def main():
   np.random.seed(0)
@@ -118,21 +98,16 @@ def main():
   gen = torch.Generator().manual_seed(0)
   batch_size = 32
     
-  ds = datasets.DFTFolderDataset('../datasets/PACS/photo')
+  ds = datasets.DFTFolderDataset('../datasets/PACS/sketch')
   train_ds, val_ds = torch.utils.data.random_split(ds, [0.75, 0.25], generator=gen)
   train_dl = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True)
   val_dl = torch.utils.data.DataLoader(val_ds, batch_size=batch_size, shuffle=True)
 
-
-  test_ds = datasets.DFTFolderDataset('../datasets/PACS/cartoon')
-  test_dl = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
-
   model = models.DFTModel(num_classes=len(ds.classes))
   model = model.to('cuda')
+  model.load_state_dict(torch.load('../trained_models/lr0.001_decay0.001_lrdecay0.99_epochs100_acc68.10551452636719.pt'))
 
-  train(model=model, train_loader=train_dl, val_loader=val_dl, epochs=100, lr=1e-3, wt_decay=1e-3, lr_decay=0.99)
-  print('Testing on best validation accuracy model')
-  test(model=model, test_loader=test_dl)
+  train(model=model, train_loader=train_dl, val_loader=val_dl, epochs=20, lr=1e-3, wt_decay=1e-3, lr_decay=0.99)
 
 if __name__ == '__main__':
   main()
